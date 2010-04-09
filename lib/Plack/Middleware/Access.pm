@@ -10,7 +10,7 @@ use Plack::Util::Accessor qw(rules deny_page);
 use Carp qw(croak);
 use Net::IP;
 
-use Yandex::Version '{{DEBIAN_VERSION}}';
+our $VERSION = 0.0.1;
 
 sub prepare_app {
     my $self = shift;
