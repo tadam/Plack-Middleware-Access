@@ -5,8 +5,6 @@ use Plack::Test;
 
 use Test::More;
 
-use lib qw(lib);
-
 my @tests = (
     {
      status => 200
