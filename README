@@ -1,0 +1,32 @@
+NAME
+    Plack::Middleware::Access - don't allow to open your app depending on the remote ip
+    and other parameters
+
+SYNOPSIS
+    # in your app.psgi
+    use Plack::Builder;
+
+    builder {
+        enable "Access" rules => [ allow => "goodhost.com",
+                                   allow => sub { <some code that returns true or false> },
+                                   allow => "192.168.1.5",
+                                   deny  => "192.168.1.0/24",
+                                   allow => "192.0.0.10",
+                                   deny  => "all" ];
+        $app;
+    };
+
+DESCRIPTION
+    Plack::Middleware::Access
+
+AUTHORS
+    Yury Zavarin C<yury.zavarin@gmail.com>.
+
+LICENSE
+    This library is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+
+SEE ALSO
+    http://github.com/tadam/Plack-Middleware-Access
+    Net::IP
+
