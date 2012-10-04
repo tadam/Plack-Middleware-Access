@@ -1,4 +1,5 @@
 package Plack::Middleware::Access;
+#ABSTRACT: don't allow to open your app depending on the remote ip and other parameters
 
 use strict;
 use warnings;
@@ -9,8 +10,6 @@ use Plack::Util::Accessor qw(rules deny_page);
 
 use Carp qw(croak);
 use Net::IP;
-
-our $VERSION = 0.0.1;
 
 sub prepare_app {
     my $self = shift;
@@ -107,10 +106,6 @@ sub _deny_page {
 
 1;
 
-=head1 NAME
-
-Plack::Middleware::Access - don't allow to open your app depending on the remote ip and other parameters
-
 =head1 SYNOPSIS
 
   # in your app.psgi
@@ -173,18 +168,8 @@ By default middleware returns page with 403 status.
 
 =back
 
-=head1 AUTHORS
-
-Yury Zavarin C<yury.zavarin@gmail.com>.
-
-=head1 LICENSE
-
-This library is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
-
 =head1 SEE ALSO
 
-L<http://github.com/tadam/Plack-Middleware-Access>
 L<Net::IP>
 
 =cut
