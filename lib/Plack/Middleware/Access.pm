@@ -61,23 +61,22 @@ sub prepare_app {
     $self->rules(\@typed_rules);
 }
 
-sub call {
+sub allow {
     my ($self, $env) = @_;
 
-    my $rule_allowing;
     foreach my $rule (@{ $self->rules }) {
         my ($allowing, $rule_type, $rule_arg) = @{$rule};
         if ($rule_type eq 'sub') {
-            $rule_allowing = $allowing if ($rule_arg->($env));
-
+            my $result = $rule_arg->($env);
+            if (defined $result) {
+                return $result ? $allowing : !$allowing;
+            }
         } elsif ($rule_type eq 'all') {
-            $rule_allowing = $allowing;
-            last;
+            return $allowing;
         } elsif ($rule_type eq 'host') {
             my $host = $env->{REMOTE_HOST};
             if (defined($host) && $host =~ $rule_arg) {
-                $rule_allowing = $allowing;
-                last;
+                return $allowing;
             }
         } elsif ($rule_type eq 'ip') {
             my $addr = $env->{REMOTE_ADDR};
@@ -87,22 +86,19 @@ sub call {
                 if ($overlaps == $IP_B_IN_A_OVERLAP ||
                     $overlaps == $IP_IDENTICAL)
                 {
-                    $rule_allowing = $allowing;
-                    last;
+                    return $allowing;
                 }
             }
         }
     }
+    return 1;
+}
 
-    if (!defined($rule_allowing) || $rule_allowing == 1) {
-        return $self->app->($env);
-    } else {
-        if ($self->deny_page) {
-            return $self->deny_page->($env);
-        } else {
+sub call {
+    my ($self, $env) = @_;
 
-        }
-    }
+    return $self->allow($env) 
+        ? $self->app->($env) : $self->deny_page->($env);
 }
 
 1;
@@ -114,7 +110,7 @@ sub call {
 
   builder {
     enable "Access" rules => [ allow => "goodhost.com",
-                               allow => sub { <some code that returns true or false> },
+                               allow => sub { <some code that returns true, false, or undef> },
                                allow => "192.168.1.5",
                                deny  => "192.168.1.0/24",
                                allow => "192.0.0.10",
@@ -133,10 +129,10 @@ It is very similar with allow/deny directives in web-servers.
 
 =item rules
 
-C<rules> is an ARRAYREF of rules. Each rule consists of directive C<allow> or
-C<deny> and their argument.
-Rules are checked in the order of their record to the first match.
-If no rule matched then user have access to app.
+A reference to an array of rules. Each rule consists of directive C<allow> or
+C<deny> and their argument. Rules are checked in the order of their record to
+the first match. Code rules always match if they return a defined value. Access
+is granted if no rule matched.
 
 Argument for the rule is a one of four possibilites:
 
@@ -165,16 +161,16 @@ such as user browser and so on. This function takes C<$env> as parameter.
 =item deny_page
 
 Either an error message which is returned with HTTP status code 403
-("Forbidden" by default), or a code reference with a PSGI app to return
-a PSGI-compliant response if access was denied.
+("Forbidden" by default), or a code reference with a PSGI app to return a
+PSGI-compliant response if access was denied.
 
 =back
 
 =head1 SEE ALSO
 
-This module uses L<Net::IP>. If your app runs behind a reverse proxy, you
-should wrap it with L<Plack::Middleware::ReverseProxy> to get the original
-request IP. There are several modules in the L<Plack::Middleware::Auth::|http://search.cpan.org/search?query=Plack%3A%3AMiddleware%3A%3AAuth>
+If your app runs behind a reverse proxy, you should wrap it with
+L<Plack::Middleware::ReverseProxy> to get the original request IP. There are
+several modules in the L<Plack::Middleware::Auth::|http://search.cpan.org/search?query=Plack%3A%3AMiddleware%3A%3AAuth>
 namespace to enable authentification for access restriction.
 
 =cut
