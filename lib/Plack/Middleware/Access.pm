@@ -189,4 +189,8 @@ L<Plack::Middleware::ReverseProxy> to get the original request IP. There are
 several modules in the L<Plack::Middleware::Auth::|http://search.cpan.org/search?query=Plack%3A%3AMiddleware%3A%3AAuth>
 namespace to enable authentification for access restriction.
 
+=head1 ACKNOWLEDGEMENTS
+
+Jakob Voss
+
 =cut
