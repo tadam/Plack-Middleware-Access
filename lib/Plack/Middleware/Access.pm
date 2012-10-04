@@ -38,7 +38,7 @@ sub prepare_app {
     foreach (my $i = 0; $i < @{ $self->rules }; $i += 2) {
         my $allowing = $self->rules->[$i];
         my $rule = $self->rules->[$i + 1];
-   
+
         if ($allowing !~ /^(allow|deny)$/) {
             croak "first argument of each rule must be 'allow' or 'deny'";
         }
@@ -59,7 +59,7 @@ sub prepare_app {
                 return $host =~ qr/^(.*\.)?\Q${rule}\E$/;
             };
         } elsif ( (ref($rule) // '') ne 'CODE' ) {
-            my $netip = Net::IP->new($rule) or 
+            my $netip = Net::IP->new($rule) or
                 die "not supported type of rule argument [$rule] or bad ip: " . Net::IP::Error();
             $check = sub {
                 my $addr = $_[0]->{REMOTE_ADDR};
@@ -108,13 +108,13 @@ sub call {
   use Plack::Builder;
 
   builder {
-    enable "Access" rules => [ 
+    enable "Access" rules => [
         allow => "goodhost.com",
         allow => sub { <some code that returns true, false, or undef> },
         allow => "192.168.1.5",
         deny  => "192.168.1.0/24",
         allow => "192.0.0.10",
-        deny  => "all" 
+        deny  => "all"
     ];
     $app;
   };
