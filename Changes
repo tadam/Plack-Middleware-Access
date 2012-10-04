@@ -1,4 +1,8 @@
 Revision history for Plack-Middleware-Access
 
-0.0.1 09/04/2010
+0.1   2011-10-04
+        Refactored by Jakob Voss
+    
+0.0.1 2010-09-04
         First version.
+

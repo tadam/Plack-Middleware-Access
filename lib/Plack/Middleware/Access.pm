@@ -25,72 +25,71 @@ sub prepare_app {
         croak "deny_page must be a CODEREF";
     }
 
-    if (defined($self->rules) && ref($self->rules) ne 'ARRAY') {
+    if (!defined($self->rules)) {
+        $self->rules([]);
+    } elsif( (ref($self->rules) // '') ne 'ARRAY' ) {
         croak "rules must be an ARRAYREF";
-    }
-
-    my @rules = $self->rules ? @{$self->rules} : ();
-    my @typed_rules = ();
-
-    if (@rules % 2 != 0) {
+    } elsif (@{ $self->rules } % 2 != 0) {
         croak "rules must contain an even number of params";
     }
 
-    foreach (my $i = 0; $i < @rules; $i += 2) {
-        my $allowing = $rules[$i];
-        my $rule_arg = $rules[$i + 1];
+    my @rules = ();
+
+    foreach (my $i = 0; $i < @{ $self->rules }; $i += 2) {
+        my $allowing = $self->rules->[$i];
+        my $rule = $self->rules->[$i + 1];
+   
         if ($allowing !~ /^(allow|deny)$/) {
-            croak "first argument of each rule should be 'allow' or 'deny'";
+            croak "first argument of each rule must be 'allow' or 'deny'";
         }
-        if (!defined($rule_arg)) {
+
+        if (!defined($rule)) {
             croak "rule argument must be defined";
         }
+
         $allowing = ($allowing eq 'allow') ? 1 : 0;
-        if (ref($rule_arg) eq 'CODE') {
-            push @typed_rules, [$allowing, "sub", $rule_arg];
-        } elsif ($rule_arg eq 'all') {
-            push @typed_rules, [$allowing, 'all'];
-        } elsif ($rule_arg =~ /[A-Z]$/i) {
-            push @typed_rules, [ $allowing, "host", qr/^(.*\.)?\Q${rule_arg}\E$/ ];
-        } else {
-            my $ip = Net::IP->new($rule_arg) or 
-                die "not supported type of rule argument [$rule_arg] or bad ip: " . Net::IP::Error();
-            push @typed_rules, [ $allowing, "ip", $ip ];
+        my $check = $rule;
+
+        if ($rule eq 'all') {
+            $check = sub { 1 };
+        } elsif ($rule =~ /[A-Z]$/i) {
+            $check = sub { 
+                my $host = $_[0]->{REMOTE_HOST};
+                return unless defined $host; # skip rule
+                return $host =~ qr/^(.*\.)?\Q${rule}\E$/;
+            };
+        } elsif ( (ref($rule) // '') ne 'CODE' ) {
+            my $netip = Net::IP->new($rule) or 
+                die "not supported type of rule argument [$rule] or bad ip: " . Net::IP::Error();
+            $check = sub {
+                my $addr = $_[0]->{REMOTE_ADDR};
+                my $ip;
+                if (defined($addr) && ($ip = Net::IP->new($addr))) {
+                    my $overlaps = $netip->overlaps($ip);
+                    return $overlaps == $IP_B_IN_A_OVERLAP || $overlaps == $IP_IDENTICAL;
+                } else {
+                    return undef;
+                }
+            };
         }
+
+        push @rules, [ $check => $allowing ];
     }
-    $self->rules(\@typed_rules);
+
+    $self->rules(\@rules);
 }
 
 sub allow {
     my ($self, $env) = @_;
 
     foreach my $rule (@{ $self->rules }) {
-        my ($allowing, $rule_type, $rule_arg) = @{$rule};
-        if ($rule_type eq 'sub') {
-            my $result = $rule_arg->($env);
-            if (defined $result) {
-                return $result ? $allowing : !$allowing;
-            }
-        } elsif ($rule_type eq 'all') {
-            return $allowing;
-        } elsif ($rule_type eq 'host') {
-            my $host = $env->{REMOTE_HOST};
-            if (defined($host) && $host =~ $rule_arg) {
-                return $allowing;
-            }
-        } elsif ($rule_type eq 'ip') {
-            my $addr = $env->{REMOTE_ADDR};
-            my $ip;
-            if (defined($addr) && ($ip = Net::IP->new($addr))) {
-                my $overlaps = $rule_arg->overlaps($ip);
-                if ($overlaps == $IP_B_IN_A_OVERLAP ||
-                    $overlaps == $IP_IDENTICAL)
-                {
-                    return $allowing;
-                }
-            }
+        my ($check, $allow) = @{$rule};
+        my $result = $check->($env);
+        if (defined $result) {
+            return ($result ? $allow : !$allow);
         }
     }
+
     return 1;
 }
 
@@ -98,7 +97,7 @@ sub call {
     my ($self, $env) = @_;
 
     return $self->allow($env) 
-        ? $self->app->($env) : $self->deny_page->($env);
+         ? $self->app->($env) : $self->deny_page->($env);
 }
 
 1;
@@ -109,18 +108,20 @@ sub call {
   use Plack::Builder;
 
   builder {
-    enable "Access" rules => [ allow => "goodhost.com",
-                               allow => sub { <some code that returns true, false, or undef> },
-                               allow => "192.168.1.5",
-                               deny  => "192.168.1.0/24",
-                               allow => "192.0.0.10",
-                               deny  => "all" ];
+    enable "Access" rules => [ 
+        allow => "goodhost.com",
+        allow => sub { <some code that returns true, false, or undef> },
+        allow => "192.168.1.5",
+        deny  => "192.168.1.0/24",
+        allow => "192.0.0.10",
+        deny  => "all" 
+    ];
     $app;
   };
 
 =head1 DESCRIPTION
 
-This middleware intended for restricting access to your app by some users.
+This middleware is intended for restricting access to your app by some users.
 It is very similar with allow/deny directives in web-servers.
 
 =head1 CONFIGURATION
@@ -144,7 +145,8 @@ Always matched. Typical use-case is a deny => "all" in the end of rules.
 
 =item remote_host
 
-Matches on domain or subdomain of remote_host if it can be resolved.
+Matches on domain or subdomain of remote_host if it can be resolved. If
+C<$env{REMOTE_HOST}> is not set, the rule is skipped.
 
 =item ip
 
@@ -153,8 +155,9 @@ possible variants.
 
 =item code
 
-You can pass an arbitrary coderef for checking some specific params of request
-such as user browser and so on. This function takes C<$env> as parameter.
+An arbitrary code reference for checking arbitrary properties of the request.
+This function takes C<$env> as parameter. The rule is skipped if the code
+returns undef.
 
 =back
 
@@ -165,6 +168,19 @@ Either an error message which is returned with HTTP status code 403
 PSGI-compliant response if access was denied.
 
 =back
+
+=head1 METHODS
+
+=head2 allow( $env )
+
+You can also the allow method of use this module just to check PSGI requests
+whether they match some rules:
+
+    my $check = Plack::Middleware::Access->new( rules => [ ... ] );
+
+    if ( $check->allow( $env ) ) {
+        ...
+    }
 
 =head1 SEE ALSO
 
