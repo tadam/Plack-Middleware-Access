@@ -1,8 +1,9 @@
 package Plack::Middleware::Access;
-#ABSTRACT: don't allow to open your app depending on the remote ip and other parameters
+#ABSTRACT: Restrict access depending on remote ip or other parameters
 
 use strict;
 use warnings;
+use v5.10;
 
 use parent qw(Plack::Middleware);
 
@@ -14,21 +15,25 @@ use Net::IP;
 sub prepare_app {
     my $self = shift;
 
-    if (!defined($self->deny_page)) {
-        $self->deny_page(\&_deny_page);
-    } elsif (ref($self->deny_page) ne 'CODE') {
-        croak "deny_page should be a CODEREF";
+    if (!ref $self->deny_page) {
+        my $msg = $self->deny_page // 'Forbidden';
+        $self->deny_page(sub {
+            [403, [ 'Content-Type'   =>'text/plain',
+                    'Content-Length' => length $msg ], [ $msg ] ];
+        });
+    } elsif (ref $self->deny_page ne 'CODE') {
+        croak "deny_page must be a CODEREF";
     }
 
     if (defined($self->rules) && ref($self->rules) ne 'ARRAY') {
-        croak "rules should be an ARRAYREF";
+        croak "rules must be an ARRAYREF";
     }
 
     my @rules = $self->rules ? @{$self->rules} : ();
     my @typed_rules = ();
 
     if (@rules % 2 != 0) {
-        croak "rules should contains even number of params";
+        croak "rules must contain an even number of params";
     }
 
     foreach (my $i = 0; $i < @rules; $i += 2) {
@@ -38,7 +43,7 @@ sub prepare_app {
             croak "first argument of each rule should be 'allow' or 'deny'";
         }
         if (!defined($rule_arg)) {
-            croak "rule argument should not be undefined";
+            croak "rule argument must be defined";
         }
         $allowing = ($allowing eq 'allow') ? 1 : 0;
         if (ref($rule_arg) eq 'CODE') {
@@ -48,7 +53,8 @@ sub prepare_app {
         } elsif ($rule_arg =~ /[A-Z]$/i) {
             push @typed_rules, [ $allowing, "host", qr/^(.*\.)?\Q${rule_arg}\E$/ ];
         } else {
-            my $ip = Net::IP->new($rule_arg) or die "not supported type of rule argument [$rule_arg] or bad ip: " . Net::IP::Error();
+            my $ip = Net::IP->new($rule_arg) or 
+                die "not supported type of rule argument [$rule_arg] or bad ip: " . Net::IP::Error();
             push @typed_rules, [ $allowing, "ip", $ip ];
         }
     }
@@ -63,7 +69,8 @@ sub call {
         my ($allowing, $rule_type, $rule_arg) = @{$rule};
         if ($rule_type eq 'sub') {
             $rule_allowing = $allowing if ($rule_arg->($env));
-        } if ($rule_type eq 'all') {
+
+        } elsif ($rule_type eq 'all') {
             $rule_allowing = $allowing;
             last;
         } elsif ($rule_type eq 'host') {
@@ -96,12 +103,6 @@ sub call {
 
         }
     }
-}
-
-sub _deny_page {
-    return [403,
-            ['Content-Type' => 'text/plain'],
-            ["You are not allowed to view this page."]];
 }
 
 1;
@@ -163,13 +164,17 @@ such as user browser and so on. This function takes C<$env> as parameter.
 
 =item deny_page
 
-It is a CODEREF to function that accepts an C<$env> and returns PSGI-compliant response.
-By default middleware returns page with 403 status.
+Either an error message which is returned with HTTP status code 403
+("Forbidden" by default), or a code reference with a PSGI app to return
+a PSGI-compliant response if access was denied.
 
 =back
 
 =head1 SEE ALSO
 
-L<Net::IP>
+This module uses L<Net::IP>. If your app runs behind a reverse proxy, you
+should wrap it with L<Plack::Middleware::ReverseProxy> to get the original
+request IP. There are several modules in the L<Plack::Middleware::Auth::|http://search.cpan.org/search?query=Plack%3A%3AMiddleware%3A%3AAuth>
+namespace to enable authentification for access restriction.
 
 =cut

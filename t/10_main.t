@@ -32,10 +32,16 @@ my @tests = (
     {
      rules => [ deny => '127.0.0.1' ],
      deny_page => sub { return [ 401, [ 'Content-Type' => 'text/plain' ], ['custom']] },
-     status => 401
-    }
+     status => 401,
+     content => 'custom',
+    },
+    {
+     rules => [ deny => '127.0.0.1' ],
+     deny_page => 'something',
+     status => 403,
+     content => 'something',
+    },
 );
-
 
 foreach my $test (@tests) {
     my $app = get_handler($test->{rules}, $test->{deny_page});
@@ -44,7 +50,8 @@ foreach my $test (@tests) {
         my $cb = shift;
 
         my $res = $cb->(HTTP::Request->new(GET => 'http://localhost/'));
-        is $res->code, $test->{status};
+        is( $res->code, $test->{status} ) if $test->{status};
+        is( $res->content, $test->{content} ) if $test->{content};
     };
 }
 
