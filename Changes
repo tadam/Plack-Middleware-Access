@@ -1,7 +1,10 @@
 Revision history for Plack-Middleware-Access
 
+0.3   2012-14-01
+        Fixed a bug with multiple allow rules. Thanks to Jesper Dalberg.  
+
 0.2   2011-10-04
-        Refactored by Jakob Voss
+        Refactored by Jakob Voss.
     
 0.0.1 2010-09-04
         First version.
