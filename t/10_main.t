@@ -41,6 +41,12 @@ my @tests = (
      status => 403,
      content => 'something',
     },
+    {
+     rules => [ allow => 'nosuchhost.com', # this rule should be skipped
+                allow => sub { shift()->{REMOTE_ADDR} =~ /7/ }, # this rule should work
+                deny  => 'all' ],
+     status => 200
+    }
 );
 
 foreach my $test (@tests) {
