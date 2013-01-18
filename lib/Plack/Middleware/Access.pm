@@ -108,11 +108,11 @@ sub call {
   use Plack::Builder;
 
   builder {
-    enable "Access" rules => [
+    enable "Access", rules => [
         allow => "goodhost.com",
         allow => sub { <some code that returns true, false, or undef> },
         allow => "192.168.1.5",
-        deny  => "192.168.1.0/24",
+        deny  => "192.168.1/24",
         allow => "192.0.0.10",
         deny  => "all"
     ];
