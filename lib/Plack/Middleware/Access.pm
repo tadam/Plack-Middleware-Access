@@ -3,7 +3,6 @@ package Plack::Middleware::Access;
 
 use strict;
 use warnings;
-use v5.10;
 
 use parent qw(Plack::Middleware);
 
@@ -16,7 +15,8 @@ sub prepare_app {
     my $self = shift;
 
     if (!ref $self->deny_page) {
-        my $msg = $self->deny_page // 'Forbidden';
+        my $msg = defined $self->deny_page ?
+                          $self->deny_page : 'Forbidden';
         $self->deny_page(sub {
             [403, [ 'Content-Type'   =>'text/plain',
                     'Content-Length' => length $msg ], [ $msg ] ];
@@ -27,7 +27,7 @@ sub prepare_app {
 
     if (!defined($self->rules)) {
         $self->rules([]);
-    } elsif( (ref($self->rules) // '') ne 'ARRAY' ) {
+    } elsif( ref($self->rules) ne 'ARRAY' ) {
         croak "rules must be an ARRAYREF";
     } elsif (@{ $self->rules } % 2 != 0) {
         croak "rules must contain an even number of params";
@@ -58,7 +58,7 @@ sub prepare_app {
                 return unless defined $host; # skip rule
                 return $host =~ qr/^(.*\.)?\Q${rule}\E$/;
             };
-        } elsif ( (ref($rule) // '') ne 'CODE' ) {
+        } elsif ( ref($rule) ne 'CODE' ) {
             my $netip = Net::IP->new($rule) or
                 die "not supported type of rule argument [$rule] or bad ip: " . Net::IP::Error();
             $check = sub {
