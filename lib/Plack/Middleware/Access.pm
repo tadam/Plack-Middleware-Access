@@ -65,6 +65,9 @@ sub prepare_app {
                 my $addr = $_[0]->{REMOTE_ADDR};
                 my $ip;
                 if (defined($addr) && ($ip = Net::IP->new($addr))) {
+                    if ($netip->version() != $ip->version()) {
+                        return undef; # skip rule
+                    }
                     my $overlaps = $netip->overlaps($ip);
                     return $overlaps == $IP_B_IN_A_OVERLAP || $overlaps == $IP_IDENTICAL;
                 } else {
@@ -114,6 +117,8 @@ sub call {
         allow => "192.168.1.5",
         deny  => "192.168.1/24",
         allow => "192.0.0.10",
+        deny  => "2001:db8:1:2::/64",
+        allow => "2001:db8::/32",
         deny  => "all"
     ];
     $app;
